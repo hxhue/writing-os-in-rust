@@ -63,20 +63,29 @@ impl Writer {
     pub fn write_byte(&mut self, byte: u8) {
         match byte {
             b'\n' => self.new_line(),
-            byte => {
-                if self.column_position >= BUFFER_WIDTH {
-                    self.new_line();
-                }
-                let row = BUFFER_HEIGHT - 1;
-                let col = self.column_position;
-                let color_code = self.color_code;
-                self.buffer.chars[row][col].write(ScreenChar {
-                    ascii_character: byte,
-                    color_code,
-                });
-                self.column_position += 1;
-            }
+            b'\x08' => self.backspace(),
+            0x20..=0x7e => self.write_byte_no_interpret(byte),
+            _ => self.write_byte_no_interpret(0xfe),
         }
+    }
+
+    pub fn write_byte_no_interpret(&mut self, byte: u8) {
+        if self.column_position >= BUFFER_WIDTH {
+            self.new_line();
+        }
+        let row = BUFFER_HEIGHT - 1;
+        let col = self.column_position;
+        let color_code = self.color_code;
+        self.buffer.chars[row][col].write(ScreenChar {
+            ascii_character: byte,
+            color_code,
+        });
+        self.column_position += 1;
+    }
+
+    fn backspace(&mut self) {
+        // todo 
+        self.write_byte_no_interpret(0xfe);
     }
 
     fn new_line(&mut self) {
@@ -102,10 +111,7 @@ impl Writer {
 
     pub fn write_string(&mut self, s: &str) {
         for byte in s.bytes() {
-            match byte {
-                0x20..=0x7e | b'\n' => self.write_byte(byte),
-                _ => self.write_byte(0xfe), // a red block
-            }
+            self.write_byte(byte);
         }
     }
 }
@@ -140,17 +146,27 @@ macro_rules! print {
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
-    WRITER.lock().write_fmt(args).unwrap();
+    use x86_64::instructions::interrupts;
+
+    // Turn off interrupts when executing `lock()` on WRITER.
+    interrupts::without_interrupts(|| {
+        WRITER.lock().write_fmt(args).unwrap();
+    });
 }
 
 #[test_case]
 fn test_println_output() {
+    use x86_64::instructions::interrupts;
+
     let s = "Some test string that fits on a single line";
-    println!("{}", s);
-    for (i, c) in s.chars().enumerate() {
-        let screen_char = WRITER.lock().buffer.chars[BUFFER_HEIGHT - 2][i].read();
-        assert_eq!(char::from(screen_char.ascii_character), c);
-    }
+    interrupts::without_interrupts(|| {
+        let mut writer = WRITER.lock();
+        writeln!(writer, "\n{}", s).expect("writeln failed");
+        for (i, c) in s.chars().enumerate() {
+            let screen_char = writer.buffer.chars[BUFFER_HEIGHT - 2][i].read();
+            assert_eq!(char::from(screen_char.ascii_character), c);
+        }
+    });
 }
 
 #[test_case]

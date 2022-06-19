@@ -17,9 +17,10 @@ use x86_64;
 pub fn init() {
     crate::gdt::init();
     crate::interrupts::init_idt();
+    // Register interrupt ranges for two PICs.
     unsafe { interrupts::PICS.lock().initialize(); }
     // Enable external interrupts by executing `sti`.
-    // x86_64::instructions::interrupts::enable();
+    x86_64::instructions::interrupts::enable();
 }
 
 pub trait Testable {
@@ -53,9 +54,7 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
     use qemu::*;
     exit_qemu(QemuExitCode::Failed);
 
-    loop {
-        x86_64::instructions::hlt();
-    }
+    hlt_loop()
 }
 
 // Is "cfg(test)" necessary, given that we have "test" in our "cfg_attr"?
@@ -65,13 +64,17 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
 pub extern "C" fn _start() -> ! {
     init(); 
     test_main();
-    loop {
-        x86_64::instructions::hlt();
-    }
+    hlt_loop()
 }
 
 #[cfg(test)]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     test_panic_handler(info)
+}
+
+pub fn hlt_loop() -> ! {
+    loop {
+        x86_64::instructions::hlt();
+    }
 }

@@ -12,9 +12,7 @@ use core::panic::PanicInfo;
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     println!("{}", info);
-    loop {
-        x86_64::instructions::hlt();
-    }
+    blog_os::hlt_loop()
 }
 
 #[cfg(test)]
@@ -29,12 +27,9 @@ pub extern "C" fn _start() -> ! {
 
     println!("Hello World{}", "!");
 
-    // trigger a page fault
-    #[allow(unconditional_recursion)]
-    fn overflow() {
-        overflow();
-    }
-    overflow();
+    use x86_64::registers::control::Cr3;
+    let (level_4_page_table, _) = Cr3::read();
+    println!("Level 4 page table at: {:?}", level_4_page_table.start_address());
 
     #[cfg(test)]
     test_main();
@@ -43,3 +38,5 @@ pub extern "C" fn _start() -> ! {
         x86_64::instructions::hlt();
     }
 }
+
+// 0x205691

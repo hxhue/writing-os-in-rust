@@ -13,9 +13,7 @@ use x86_64;
 #[no_mangle] 
 pub extern "C" fn _start() -> ! {
     test_main();
-    loop {
-        x86_64::instructions::hlt();
-    }
+    blog_os::hlt_loop()
 }
 
 #[panic_handler]
