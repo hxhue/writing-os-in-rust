@@ -17,6 +17,9 @@ use x86_64;
 pub fn init() {
     crate::gdt::init();
     crate::interrupts::init_idt();
+    unsafe { interrupts::PICS.lock().initialize(); }
+    // Enable external interrupts by executing `sti`.
+    // x86_64::instructions::interrupts::enable();
 }
 
 pub trait Testable {
